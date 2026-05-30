@@ -63,10 +63,23 @@ case "$DESKTOP_CHOICE" in
     *) echo "❌ Invalid selection. Defaulting to GNOME."; PROFILE="gnome" ;;
 esac
 
-# 4. Automatically detect system timezone
+# 4. Automatically detect system timezone and map mirror region
 echo -e "\n🌐 Detecting local system timezone..."
 TIMEZONE=$(timedatectl show --property=Timezone --value || echo "UTC")
 echo "📍 Detected Timezone: $TIMEZONE"
+
+# Extract the continent/region part (e.g., "Africa" from "Africa/Johannesburg")
+ZONE_PREFIX=$(echo "$TIMEZONE" | cut -d'/' -f1)
+
+case "$ZONE_PREFIX" in
+    "Africa") REGION="South Africa" ;;
+    "America") REGION="United States" ;;
+    "Europe") REGION="Germany" ;;
+    "Asia") REGION="Japan" ;;
+    "Australia") REGION="Australia" ;;
+    *) REGION="Worldwide" ;;
+esac
+echo "🪞 Automatically matching mirror region: $REGION"
 
 # 5. Show ONLY removable USB drives to eliminate risk
 echo -e "\n=========================================================="
@@ -131,7 +144,7 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
     "kernels": ["linux"],
     "language": "en_US",
     "keyboard-layout": "us",
-    "mirror-region": "United States",
+    "mirror-region": "$REGION",
     "network_config": "Copy ISO network configuration",
     "root-password": "$ROOT_PASSWORD",
     "users": [
@@ -141,7 +154,7 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
             "sudo": true
         }
     ],
-    "packages": ["firefox", "git", "fastfetch", "$LAUNCH_TERM"],
+    "packages": ["$LAUNCH_TERM"],
     "parallel_downloads": 5,
     "storage": {
         "disk_layouts": [
@@ -191,7 +204,10 @@ echo "=========================================================="
 echo "🎯 USB Configuration Complete:"
 echo " - Main Target Hard Drive: /dev/$INTERNAL_DRIVE"
 echo " - User profile: $USER_NAME"
-echo " - Desktop: $PROFILE"
+echo " - Desktop Profile: $PROFILE"
 echo " - Timezone: $TIMEZONE"
+echo " - Mirror Location Country: $REGION"
 echo " - Storage Layout: Btrfs with GRUB bootloader"
+echo "=========================================================="
+echo -e "${RED}\n🔄 PROCESS COMPLETE. PLEASE REBOOT YOUR PC NOW AND BOOT FROM THE USB KEY!${NC}"
 echo "=========================================================="
