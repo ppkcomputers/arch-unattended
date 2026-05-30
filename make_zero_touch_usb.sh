@@ -11,14 +11,14 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Ensure syslinux tool availability for vintage master boot records
-if ! command -v syslinux &> /dev/null; then
-    echo "⚙️ Installing syslinux dependency for legacy mbr compilation..."
-    sudo pacman -S --needed --noconfirm syslinux
+# Ensure grub is installed on the host system to build the USB bootloader
+if ! command -v grub-install &> /dev/null; then
+    echo "⚙️ Installing grub package for legacy MBR compilation..."
+    sudo pacman -S --needed --noconfirm grub
 fi
 
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - VINTAGE REPO PLUG CREATOR            "
+echo "    ARCH AUTOPILOT - GRUB2 LEGACY PLUG CREATOR            "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
@@ -101,11 +101,11 @@ if [ ! -b "$TARGET" ]; then
     exit 1
 fi
 
-# 6. Partition and Install Hard-Coded Legacy Boot MBR Sector Code
-echo "🧹 Re-building partition blocks for traditional BIOS..."
+# 6. Partition and Format the USB using standard MBR layouts
+echo "🧹 Wiping and structuring partition tables..."
 umount "${TARGET}"* 2>/dev/null || true
 
-# Completely clear first sectors
+# Completely clear existing master boot records
 dd if=/dev/zero of="$TARGET" bs=512 count=40 conv=notrunc
 
 # Form a clean MSDOS partition record table
@@ -122,16 +122,14 @@ fi
 sleep 1
 mkfs.vfat -F 32 -n "ARCH_LAUNCH" "$PARTITION"
 
-# Inject the standard syslinux MBR bootstrap code directly into the raw disk head
-dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of="$TARGET"
-
-# 7. Mount partition environment to configure runtime scripts
+# 7. Mount partition environment to configure GRUB2 and configurations
 MOUNT_DIR=$(mktemp -d)
 mount "$PARTITION" "$MOUNT_DIR"
 trap 'umount "$MOUNT_DIR" 2>/dev/null && rmdir "$MOUNT_DIR" 2>/dev/null' EXIT
 
-# Install Syslinux software libraries on the filesystem mount location
-syslinux --install "$PARTITION"
+# Install GRUB2 directly onto the USB Drive for i386-pc target (Legacy BIOS)
+echo "💾 Writing GRUB2 master boot record to physical drive..."
+grub-install --target=i386-pc --boot-directory="$MOUNT_DIR/boot" "$TARGET"
 
 # Determine terminal package to launch post-install script
 LAUNCH_TERM="kitty"
@@ -193,18 +191,23 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 }
 EOF
 
-# 9. Create a classic syslinux configuration file that chains to your netboot routing engine
-cat <<EOF > "$MOUNT_DIR/syslinux.cfg"
-DEFAULT arch_netboot
-LABEL arch_netboot
-  LINUX memdisk
-  INITRD netboot.xyz.lkrn
+# 9. Configure the GRUB2 boot entry menu layout
+mkdir -p "$MOUNT_DIR/boot/grub"
+cat <<EOF > "$MOUNT_DIR/boot/grub/grub.cfg"
+set default=0
+set timeout=2
+
+menuentry "Arch Linux Unattended Installation (netboot.xyz)" {
+    insmod part_msdos
+    insmod fat
+    set root='hd0,msdos1'
+    linux16 /netboot.xyz.lkrn
+}
 EOF
 
-# Fetch the raw direct-kernel runtime binary for real-mode legacy execution paths
-echo "🌐 Syncing real-mode core binary image..."
+# Fetch the raw core binary image directly onto the USB
+echo "🌐 Downloading real-mode core binary..."
 curl -L -o "$MOUNT_DIR/netboot.xyz.lkrn" "https://boot.netboot.xyz/ipxe/netboot.xyz.lkrn"
-curl -L -o "$MOUNT_DIR/memdisk" "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/memdisk" 2>/dev/null || curl -L -o "$MOUNT_DIR/memdisk" "https://kernel.org/pub/linux/utils/boot/syslinux/3.xx/syslinux-3.86.tar.gz" # standard kernel fallback file path
 
 # Mirror local configuration chain mapping
 cat <<EOF > "$MOUNT_DIR/autoexec.ipxe"
@@ -214,10 +217,9 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ ARCH AUTOPILOT COMPLETED: G550 Legacy Key armed!"
+echo "✅ ARCH AUTOPILOT COMPLETED: GRUB2 Boot Key Armed!"
 echo "=========================================================="
 echo -e "${RED}\n🔄 PLEASE REBOOT THE G550 NOW.${NC}"
-echo "1. Turn on the machine and immediately mash the 'F12' key."
+echo "1. Turn on the machine and immediately smash the 'F12' key."
 echo "2. Select 'USB HDD' (or your USB flash drive manufacturer name) from the list."
-echo "3. The hardware will instantly process your installation sequence!"
 echo "=========================================================="
