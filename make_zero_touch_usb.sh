@@ -12,7 +12,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - USER CONFIGURATION CREATOR           "
+echo "    ARCH AUTOPILOT - HIGH-COMPATIBILITY NETBOOT           "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
@@ -85,7 +85,6 @@ echo "🪞 Automatically matching mirror region: $REGION"
 echo -e "\n=========================================================="
 echo "🔌 AVAILABLE USB FLASH DRIVES DETECTED:"
 echo "----------------------------------------------------------"
-# Filters lsblk to target only removable drives (RM=1) and excludes type loop/rom
 lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected! Please plug one in."
 echo "=========================================================="
 echo ""
@@ -187,9 +186,10 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 }
 EOF
 
-# 9. Setup Bootloader files on the USB
-echo "🌐 Syncing network bootstrap architecture onto hardware..."
-curl -L -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "https://boot.netboot.xyz/ipxe/netboot.xyz.efi"
+# 9. Setup Bootloader files on the USB using the Driver-Inclusive Linux Initrd Application
+echo "🌐 Syncing high-compatibility network bootstrap architecture onto hardware..."
+# Pulling the standard Linux-kernel packed alternative to include all third-party NIC drivers
+curl -L -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "https://boot.netboot.xyz/ipxe/netboot.xyz-initrd.efi"
 
 # Create local script routing redirection
 cat <<EOF > "$MOUNT_DIR/autoexec.ipxe"
@@ -199,7 +199,7 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ ARMING SUCCESSFUL: Intelligent key created!"
+echo "✅ ARMING SUCCESSFUL: High-compatibility key created!"
 echo "=========================================================="
 echo "🎯 USB Configuration Complete:"
 echo " - Main Target Hard Drive: /dev/$INTERNAL_DRIVE"
@@ -207,7 +207,6 @@ echo " - User profile: $USER_NAME"
 echo " - Desktop Profile: $PROFILE"
 echo " - Timezone: $TIMEZONE"
 echo " - Mirror Location Country: $REGION"
-echo " - Storage Layout: Btrfs with GRUB bootloader"
 echo "=========================================================="
 echo -e "${RED}\n🔄 PROCESS COMPLETE. PLEASE REBOOT YOUR PC NOW AND BOOT FROM THE USB KEY!${NC}"
 echo "=========================================================="
