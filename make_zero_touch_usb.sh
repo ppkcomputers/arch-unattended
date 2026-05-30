@@ -12,21 +12,18 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - UNIVERSAL CONFIGURATION CREATOR     "
+echo "    ARCH AUTOPILOT - HYBRID ISO PLUG CREATOR              "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
 echo "🔍 Analyzing system hardware..."
 INTERNAL_DRIVE=""
 
-# Check if an NVMe drive exists and is likely the main OS drive
 if [ -b "/dev/nvme0n1" ]; then
     INTERNAL_DRIVE="nvme0n1"
-# Fallback to standard sda if it exists
 elif [ -b "/dev/sda" ]; then
     INTERNAL_DRIVE="sda"
 else
-    # Ultimate fallback: Find the first non-removable disk that isn't a loop device
     INTERNAL_DRIVE=$(lsblk -dno NAME,TYPE | grep -E "disk" | awk '{print $1}' | head -n 1)
 fi
 
@@ -68,9 +65,7 @@ echo -e "\n🌐 Detecting local system timezone..."
 TIMEZONE=$(timedatectl show --property=Timezone --value || echo "UTC")
 echo "📍 Detected Timezone: $TIMEZONE"
 
-# Extract the continent/region part
 ZONE_PREFIX=$(echo "$TIMEZONE" | cut -d'/' -f1)
-
 case "$ZONE_PREFIX" in
     "Africa") REGION="South Africa" ;;
     "America") REGION="United States" ;;
@@ -81,20 +76,18 @@ case "$ZONE_PREFIX" in
 esac
 echo "🪞 Automatically matching mirror region: $REGION"
 
-# 5. Show ONLY removable USB drives to eliminate risk
+# 5. Show ONLY removable USB drives
 echo -e "\n=========================================================="
 echo "🔌 AVAILABLE USB FLASH DRIVES DETECTED:"
 echo "----------------------------------------------------------"
-lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected! Please plug one in."
+lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected!"
 echo "=========================================================="
 echo ""
-echo "Look at the list above. For example, if it says '👉 Drive Letter: sdb', type 'sdb'."
-read -p "Type your USB drive letter here: " TARGET_DEV </dev/tty
+read -p "Type your USB drive letter here (e.g., sdb): " TARGET_DEV </dev/tty
 TARGET="/dev/$TARGET_DEV"
 
-# Safety sanity check
 if [ "$TARGET_DEV" == "$INTERNAL_DRIVE" ]; then
-    echo -e "${RED}❌ CRITICAL ERROR: You cannot use your main internal drive (/dev/$INTERNAL_DRIVE) as the installation USB!${NC}" >&2
+    echo -e "${RED}❌ CRITICAL ERROR: You cannot use your main internal drive as the installation USB!${NC}" >&2
     exit 1
 fi
 
@@ -103,34 +96,29 @@ if [ ! -b "$TARGET" ]; then
     exit 1
 fi
 
-# 6. Partition and Format the USB (With Legacy + UEFI Hybrid Flags)
-echo "🧹 Clearing device mounts and storage structures..."
+# 6. Flash the Hybrid Network Boot ISO directly to the raw USB device
+echo "🌐 Downloading and flashing universal hybrid boot image..."
 umount "${TARGET}"* 2>/dev/null || true
 
-# Erase old partition signatures completely
-dd if=/dev/zero of="$TARGET" bs=512 count=40 conv=notrunc
+# Pull the official multi-boot image and stream it straight to the disk sector
+curl -L "https://boot.netboot.xyz/ipxe/netboot.xyz.iso" | dd of="$TARGET" bs=4M status=progress conv=fdatasync
+sleep 3
 
-# Create classic MBR/msdos layout, add boot and lba flags for old BIOS compatibility
-parted -s "$TARGET" mklabel msdos
-parted -s "$TARGET" mkpart primary fat32 1MiB 100%
-parted -s "$TARGET" set 1 boot on
-parted -s "$TARGET" set 1 lba on
-
+# 7. Mount the modified FAT32 partition inside the hybrid layout to write configuration data
+echo "⚙️ Mounting USB partition to drop custom unattended configuration layouts..."
 if [[ "$TARGET_DEV" == *"nvme"* || "$TARGET_DEV" == *"mmcblk"* ]]; then
     PARTITION="${TARGET}p1"
 else
     PARTITION="${TARGET}1"
 fi
 
+# Force system to reread table structures
+partprobe "$TARGET" || true
 sleep 2
-mkfs.vfat -F 32 -n "ARCH_LAUNCH" "$PARTITION"
 
-# 7. Mount USB Environment
 MOUNT_DIR=$(mktemp -d)
 mount "$PARTITION" "$MOUNT_DIR"
 trap 'umount "$MOUNT_DIR" 2>/dev/null && rmdir "$MOUNT_DIR" 2>/dev/null' EXIT
-
-mkdir -p "$MOUNT_DIR/EFI/BOOT"
 
 # Determine terminal package to launch post-install script
 LAUNCH_TERM="kitty"
@@ -192,15 +180,7 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 }
 EOF
 
-# 9. Setup Universal Bootloader files on the USB
-echo "🌐 Syncing multi-boot network architecture onto hardware..."
-# Standard UEFI Boot File
-curl -L -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "https://boot.netboot.xyz/ipxe/netboot.xyz.efi"
-
-# Fallback/Legacy PXE boot configuration for older motherboards
-curl -L -o "$MOUNT_DIR/bios.pxe" "https://boot.netboot.xyz/ipxe/netboot.xyz.lkrn" 2>/dev/null || true
-
-# Create local script routing redirection
+# 9. Override the default embedded iPXE autoexec script inside the partition directory 
 cat <<EOF > "$MOUNT_DIR/autoexec.ipxe"
 #!ipxe
 chain https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/script.ipxe
@@ -208,15 +188,12 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ ARMING SUCCESSFUL: Universal installer key created!"
+echo "✅ UNIVERSAL RE-ARMING COMPLETE: Hybrid key ready!"
 echo "=========================================================="
-echo "🎯 USB Configuration Complete:"
-echo " - Main Target Hard Drive: /dev/$INTERNAL_DRIVE"
-echo " - User profile: $USER_NAME"
-echo " - Desktop Profile: $PROFILE"
-echo " - Timezone: $TIMEZONE"
-echo " - Storage Layout: Btrfs with GRUB bootloader"
+echo "🎯 System Configuration Details:"
+echo " - Hardware Path: /dev/$INTERNAL_DRIVE"
+echo " - Desktop Profile Selected: $PROFILE"
+echo " - Mirror Core Target: $REGION"
 echo "=========================================================="
-echo -e "${RED}\n🔄 PROCESS COMPLETE. PLEASE REBOOT YOUR PC NOW AND BOOT FROM THE USB KEY!${NC}"
-echo "⚠️  NOTE FOR OLDER LAPTOPS: Ensure 'UEFI Boot' or 'Legacy/CSM Support' is enabled in your BIOS settings if the drive does not list immediately.${NC}"
+echo -e "${RED}\n🔄 PLEASE REBOOT NOW. Tap F12 (or Fn+F12) to access the Lenovo boot selection popup and pick your USB drive!${NC}"
 echo "=========================================================="
