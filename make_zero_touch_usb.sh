@@ -11,8 +11,14 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Ensure syslinux tool availability for vintage master boot records
+if ! command -v syslinux &> /dev/null; then
+    echo "⚙️ Installing syslinux dependency for legacy mbr compilation..."
+    sudo pacman -S --needed --noconfirm syslinux
+fi
+
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - HYBRID ISO PLUG CREATOR              "
+echo "    ARCH AUTOPILOT - VINTAGE REPO PLUG CREATOR            "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
@@ -74,7 +80,6 @@ case "$ZONE_PREFIX" in
     "Australia") REGION="Australia" ;;
     *) REGION="Worldwide" ;;
 esac
-echo "🪞 Automatically matching mirror region: $REGION"
 
 # 5. Show ONLY removable USB drives
 echo -e "\n=========================================================="
@@ -96,29 +101,37 @@ if [ ! -b "$TARGET" ]; then
     exit 1
 fi
 
-# 6. Flash the Hybrid Network Boot ISO directly to the raw USB device
-echo "🌐 Downloading and flashing universal hybrid boot image..."
+# 6. Partition and Install Hard-Coded Legacy Boot MBR Sector Code
+echo "🧹 Re-building partition blocks for traditional BIOS..."
 umount "${TARGET}"* 2>/dev/null || true
 
-# Pull the official multi-boot image and stream it straight to the disk sector
-curl -L "https://boot.netboot.xyz/ipxe/netboot.xyz.iso" | dd of="$TARGET" bs=4M status=progress conv=fdatasync
-sleep 3
+# Completely clear first sectors
+dd if=/dev/zero of="$TARGET" bs=512 count=40 conv=notrunc
 
-# 7. Mount the modified FAT32 partition inside the hybrid layout to write configuration data
-echo "⚙️ Mounting USB partition to drop custom unattended configuration layouts..."
+# Form a clean MSDOS partition record table
+parted -s "$TARGET" mklabel msdos
+parted -s "$TARGET" mkpart primary fat32 1MiB 100%
+parted -s "$TARGET" set 1 boot on
+
 if [[ "$TARGET_DEV" == *"nvme"* || "$TARGET_DEV" == *"mmcblk"* ]]; then
     PARTITION="${TARGET}p1"
 else
     PARTITION="${TARGET}1"
 fi
 
-# Force system to reread table structures
-partprobe "$TARGET" || true
-sleep 2
+sleep 1
+mkfs.vfat -F 32 -n "ARCH_LAUNCH" "$PARTITION"
 
+# Inject the standard syslinux MBR bootstrap code directly into the raw disk head
+dd bs=440 count=1 conv=notrunc if=/usr/lib/syslinux/bios/mbr.bin of="$TARGET"
+
+# 7. Mount partition environment to configure runtime scripts
 MOUNT_DIR=$(mktemp -d)
 mount "$PARTITION" "$MOUNT_DIR"
 trap 'umount "$MOUNT_DIR" 2>/dev/null && rmdir "$MOUNT_DIR" 2>/dev/null' EXIT
+
+# Install Syslinux software libraries on the filesystem mount location
+syslinux --install "$PARTITION"
 
 # Determine terminal package to launch post-install script
 LAUNCH_TERM="kitty"
@@ -180,7 +193,20 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 }
 EOF
 
-# 9. Override the default embedded iPXE autoexec script inside the partition directory 
+# 9. Create a classic syslinux configuration file that chains to your netboot routing engine
+cat <<EOF > "$MOUNT_DIR/syslinux.cfg"
+DEFAULT arch_netboot
+LABEL arch_netboot
+  LINUX memdisk
+  INITRD netboot.xyz.lkrn
+EOF
+
+# Fetch the raw direct-kernel runtime binary for real-mode legacy execution paths
+echo "🌐 Syncing real-mode core binary image..."
+curl -L -o "$MOUNT_DIR/netboot.xyz.lkrn" "https://boot.netboot.xyz/ipxe/netboot.xyz.lkrn"
+curl -L -o "$MOUNT_DIR/memdisk" "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/memdisk" 2>/dev/null || curl -L -o "$MOUNT_DIR/memdisk" "https://kernel.org/pub/linux/utils/boot/syslinux/3.xx/syslinux-3.86.tar.gz" # standard kernel fallback file path
+
+# Mirror local configuration chain mapping
 cat <<EOF > "$MOUNT_DIR/autoexec.ipxe"
 #!ipxe
 chain https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/script.ipxe
@@ -188,12 +214,10 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ UNIVERSAL RE-ARMING COMPLETE: Hybrid key ready!"
+echo "✅ ARCH AUTOPILOT COMPLETED: G550 Legacy Key armed!"
 echo "=========================================================="
-echo "🎯 System Configuration Details:"
-echo " - Hardware Path: /dev/$INTERNAL_DRIVE"
-echo " - Desktop Profile Selected: $PROFILE"
-echo " - Mirror Core Target: $REGION"
-echo "=========================================================="
-echo -e "${RED}\n🔄 PLEASE REBOOT NOW. Tap F12 (or Fn+F12) to access the Lenovo boot selection popup and pick your USB drive!${NC}"
+echo -e "${RED}\n🔄 PLEASE REBOOT THE G550 NOW.${NC}"
+echo "1. Turn on the machine and immediately mash the 'F12' key."
+echo "2. Select 'USB HDD' (or your USB flash drive manufacturer name) from the list."
+echo "3. The hardware will instantly process your installation sequence!"
 echo "=========================================================="
