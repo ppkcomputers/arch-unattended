@@ -68,11 +68,16 @@ echo -e "\n🌐 Detecting local system timezone..."
 TIMEZONE=$(timedatectl show --property=Timezone --value || echo "UTC")
 echo "📍 Detected Timezone: $TIMEZONE"
 
-# 5. Show drives and get target USB
-echo -e "\n=== SYSTEM TARGET DISK LIST ==="
-lsblk -o NAME,SIZE,TYPE,MOUNTPOINTS | grep -E "disk|part"
-echo "==============================="
-read -p "Enter the USB drive identifier to format (e.g., sdb, sdc): " TARGET_DEV </dev/tty
+# 5. Show ONLY removable USB drives to eliminate risk
+echo -e "\n=========================================================="
+echo "🔌 AVAILABLE USB FLASH DRIVES DETECTED:"
+echo "----------------------------------------------------------"
+# Filters lsblk to target only removable drives (RM=1) and excludes type loop/rom
+lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected! Please plug one in."
+echo "=========================================================="
+echo ""
+echo "Look at the list above. For example, if it says '👉 Drive Letter: sdb', type 'sdb'."
+read -p "Type your USB drive letter here: " TARGET_DEV </dev/tty
 TARGET="/dev/$TARGET_DEV"
 
 # Safety sanity check: Make sure they didn't pick the internal installation drive as the USB!
