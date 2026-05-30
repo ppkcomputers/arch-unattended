@@ -11,14 +11,39 @@ echo "=========================================================="
 echo "    ARCH AUTOPILOT - USER CONFIGURATION CREATOR           "
 echo "=========================================================="
 
-# 1. Gather User Account Information
+# 1. Smart Hardware Detection (Find Main Internal Drive)
+echo "🔍 Analyzing system hardware..."
+INTERNAL_DRIVE=""
+
+# Check if an NVMe drive exists and is likely the main OS drive
+if [ -b "/dev/nvme0n1" ]; then
+    INTERNAL_DRIVE="nvme0n1"
+# Fallback to standard sda if it exists
+elif [ -b "/dev/sda" ]; then
+    INTERNAL_DRIVE="sda"
+else
+    # Ultimate fallback: Find the first non-removable disk that isn't a loop device
+    INTERNAL_DRIVE=$(lsblk -dno NAME,TYPE | grep -E "disk" | awk '{print $1}' | head -n 1)
+fi
+
+if [ -z "$INTERNAL_DRIVE" ]; then
+    echo "❌ Error: Could not automatically detect an internal hard drive." >&2
+    exit 1
+fi
+
+echo "🎯 Targeted Internal Drive for Arch Installation: /dev/$INTERNAL_DRIVE"
+echo "⚠️  NOTE: When you reboot, /dev/$INTERNAL_DRIVE will be COMPLETELY WIPED."
+echo "=========================================================="
+echo ""
+
+# 2. Gather User Account Information
 read -s -p "🔑 Enter desired ROOT password: " ROOT_PASSWORD </dev/tty
 echo ""
 read -p "👤 Enter your new username: " USER_NAME </dev/tty
 read -s -p "🔑 Enter password for $USER_NAME: " USER_PASSWORD </dev/tty
 echo ""
 
-# 2. Select Desktop Profile
+# 3. Select Desktop Profile
 echo -e "\n📺 Select your preferred Desktop Profile:"
 echo "1) Cinnamon"
 echo "2) GNOME"
@@ -34,24 +59,30 @@ case "$DESKTOP_CHOICE" in
     *) echo "❌ Invalid selection. Defaulting to GNOME."; PROFILE="gnome" ;;
 esac
 
-# 3. Automatically detect system timezone
+# 4. Automatically detect system timezone
 echo -e "\n🌐 Detecting local system timezone..."
 TIMEZONE=$(timedatectl show --property=Timezone --value || echo "UTC")
 echo "📍 Detected Timezone: $TIMEZONE"
 
-# 4. Show drives and get target USB
+# 5. Show drives and get target USB
 echo -e "\n=== SYSTEM TARGET DISK LIST ==="
 lsblk -o NAME,SIZE,TYPE,MOUNTPOINTS | grep -E "disk|part"
 echo "==============================="
 read -p "Enter the USB drive identifier to format (e.g., sdb, sdc): " TARGET_DEV </dev/tty
 TARGET="/dev/$TARGET_DEV"
 
+# Safety sanity check: Make sure they didn't pick the internal installation drive as the USB!
+if [ "$TARGET_DEV" == "$INTERNAL_DRIVE" ]; then
+    echo "❌ CRITICAL ERROR: You cannot use your main internal drive (/dev/$INTERNAL_DRIVE) as the installation USB!" >&2
+    exit 1
+fi
+
 if [ ! -b "$TARGET" ]; then
     echo "❌ Error: Target /dev/$TARGET_DEV could not be resolved." >&2
     exit 1
 fi
 
-# 5. Partition and Format the USB
+# 6. Partition and Format the USB
 echo "🧹 Clearing device mounts and storage structures..."
 umount "${TARGET}"* 2>/dev/null || true
 parted -s "$TARGET" mklabel msdos
@@ -67,7 +98,7 @@ fi
 sleep 2
 mkfs.vfat -F 32 -n "ARCH_LAUNCH" "$PARTITION"
 
-# 6. Mount USB Environment
+# 7. Mount USB Environment
 MOUNT_DIR=$(mktemp -d)
 mount "$PARTITION" "$MOUNT_DIR"
 trap 'umount "$MOUNT_DIR" 2>/dev/null && rmdir "$MOUNT_DIR" 2>/dev/null' EXIT
@@ -80,7 +111,7 @@ if [[ "$PROFILE" == "kde" ]]; then
     LAUNCH_TERM="konsole"
 fi
 
-# 7. Generate the Custom user_configuration.json dynamically onto the USB
+# 8. Generate the Custom user_configuration.json dynamically onto the USB
 cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 {
     "audio": "pipewire",
@@ -106,7 +137,7 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
     "storage": {
         "disk_layouts": [
             {
-                "device": "/dev/sda",
+                "device": "/dev/$INTERNAL_DRIVE",
                 "wipe": true,
                 "partitions": [
                     {
@@ -128,28 +159,29 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
     "version": "5.0.0",
     "custom-commands": [
         "mkdir -p /mnt/home/$USER_NAME/.config/autostart",
-        "echo -e '[Desktop Entry]\\\\nType=Application\\\\nName=PostInstallMenu\\\\nExec=$LAUNCH_TERM -e bash -c \"curl -sSL https://raw.githubusercontent.com/ppkcomputers/arch-new-install-menu/main/new-install.sh | bash; rm -- \\\\\\\"\\\\\\$0\\\\\\\"\"\\\\nX-GNOME-Autostart-enabled=true' > /mnt/home/$USER_NAME/.config/autostart/postinstall.desktop",
+        "echo -e '[Desktop Entry]\\\\nType=Application\\\\nName=PostInstallMenu\\\\nExec=$LAUNCH_TERM -e bash -c \"curl -sSL https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/new-install.sh | bash; rm -- \\\\\\\"\\\\\\$0\\?\\\"\"\\\\nX-GNOME-Autostart-enabled=true' > /mnt/home/$USER_NAME/.config/autostart/postinstall.desktop",
         "chown -R 1000:1000 /mnt/home/$USER_NAME/.config"
     ]
 }
 EOF
 
-# 8. Setup Bootloader files on the USB
+# 9. Setup Bootloader files on the USB
 echo "🌐 Syncing network bootstrap architecture onto hardware..."
 curl -L -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "https://boot.netboot.xyz/ipxe/netboot.xyz.efi"
 
 # Create local script routing redirection
 cat <<EOF > "$MOUNT_DIR/autoexec.ipxe"
 #!ipxe
-chain https://raw.githubusercontent.com/ppkcomputers/arch-new-install-menu/main/script.ipxe
+chain https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/script.ipxe
 EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ ARMING SUCCESSFUL: Dynamic installer key created!"
+echo "✅ ARMING SUCCESSFUL: Intelligent key created!"
 echo "=========================================================="
 echo "🎯 USB Configuration Complete:"
-echo " - User: $USER_NAME"
+echo " - Main Target Hard Drive: /dev/$INTERNAL_DRIVE"
+echo " - User profile: $USER_NAME"
 echo " - Desktop: $PROFILE"
 echo " - Timezone: $TIMEZONE"
 echo " - Storage Layout: Btrfs with GRUB bootloader"
