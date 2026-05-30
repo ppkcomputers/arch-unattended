@@ -214,11 +214,11 @@ EOF
 curl -sL -o "$TMP_BUILD/netboot.xyz.lkrn" "https://boot.netboot.xyz/ipxe/netboot.xyz.lkrn"
 cp "$TMP_BUILD/netboot.xyz.lkrn" "$MOUNT_DIR/netboot.xyz.lkrn"
 
-# Bake everything into an official native BOOTX64.EFI module
+# Bake everything into an official native BOOTX64.EFI module (with verified module names)
 grub-mkstandalone \
     -O x86_64-efi \
     -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" \
-    --modules="part_gpt fat test regular efi_gop efi_uga gfxterm loopback lncmd" \
+    --modules="part_gpt fat test normal efi_gop efi_uga gfxterm loopback boot linux" \
     "boot/grub/grub.cfg=$TMP_BUILD/boot/grub/grub.cfg"
 
 rm -rf "$TMP_BUILD"
