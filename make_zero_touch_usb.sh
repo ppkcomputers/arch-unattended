@@ -11,14 +11,14 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Ensure gptfdisk (sgdisk) is available on the host system
-if ! command -v sgdisk &> /dev/null; then
-    echo "⚙️ Installing gptfdisk dependency for advanced partitioning..."
-    sudo pacman -S --needed --noconfirm gptfdisk
+# Ensure grub is installed on the host to use compilation binaries
+if ! command -v grub-mkstandalone &> /dev/null; then
+    echo "⚙️ Installing missing grub dependencies for standalone compilation..."
+    sudo pacman -S --needed --noconfirm grub dosfstools mtools
 fi
 
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - RUFUS-STYLE UEFI BOOT CREATOR        "
+echo "    ARCH AUTOPILOT - COMPLED ONE-CLICK USB ARMER           "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
@@ -89,7 +89,7 @@ echo "----------------------------------------------------------"
 lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected!"
 echo "=========================================================="
 echo ""
-read -p "Type your USB drive letter here: " TARGET_DEV </dev/tty
+read -p "Type your USB drive letter here (e.g., sdb): " TARGET_DEV </dev/tty
 TARGET="/dev/$TARGET_DEV"
 
 if [ "$TARGET_DEV" == "$INTERNAL_DRIVE" ]; then
@@ -102,18 +102,14 @@ if [ ! -b "$TARGET" ]; then
     exit 1
 fi
 
-# 6. Partition and Format the USB using Advanced sgdisk (Rufus-Style Flags)
-echo "🧹 Re-initializing storage device layout..."
+# 6. Build the USB Partition Structure (Strict EFI Alignment)
+echo "🧹 Re-initializing storage structures..."
 umount "${TARGET}"* 2>/dev/null || true
-
-# Fully wipe old partition fragments and GPT backup tables at the end of the disk
 dd if=/dev/zero of="$TARGET" bs=512 count=40 conv=notrunc
-sgdisk --zap-all "$TARGET"
 
-# Create a clean GPT layout and define partition 1 explicitly as an EFI System Partition (type EF00)
-echo "💾 Writing strict EFI System Partition Type GUID (EF00)..."
-sgdisk --clear "$TARGET"
-sgdisk --new=1:2048:0 --typecode=1:ef00 --change-name=1:"EFI Boot" "$TARGET"
+parted -s "$TARGET" mklabel gpt
+parted -s "$TARGET" mkpart primary fat32 2048s 100%
+parted -s "$TARGET" set 1 esp on
 
 if [[ "$TARGET_DEV" == *"nvme"* || "$TARGET_DEV" == *"mmcblk"* ]]; then
     PARTITION="${TARGET}p1"
@@ -122,8 +118,7 @@ else
 fi
 
 sleep 2
-# Format partition explicitly with Fat32 configuration parameters
-mkfs.vfat -F 32 -F 32 -n "ARCH_LAUNCH" "$PARTITION"
+mkfs.vfat -F 32 -n "ARCH_LAUNCH" "$PARTITION"
 
 # 7. Mount USB Environment
 MOUNT_DIR=$(mktemp -d)
@@ -191,11 +186,44 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 }
 EOF
 
-# 9. Setup Bootloader files on the USB using the Driver-Inclusive Linux Initrd Application
-echo "🌐 Syncing network bootstrap architecture onto hardware..."
-curl -L -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "https://boot.netboot.xyz/ipxe/netboot.xyz-initrd.efi"
+# 9. Dynamically Compile a Standalone GRUB Bootloader Image straight to the USB
+echo "📦 Compiling native hardware boot application wrapper..."
 
-# Create local script routing redirection
+# Create a temporary internal configuration directory for compilation injection
+TMP_BUILD=$(mktemp -d)
+mkdir -p "$TMP_BUILD/boot/grub"
+
+# Write embedded boot directives telling GRUB exactly how to load netboot elements
+cat <<EOF > "$TMP_BUILD/boot/grub/grub.cfg"
+insmod efi_gop
+insmod efi_uga
+insmod font
+insmod gfxterm
+
+set timeout=0
+set default=0
+
+menuentry "Arch Autopilot Live Setup" {
+    echo "🌐 Initializing Autopilot Live Environment..."
+    loopback loop /netboot.xyz.lkrn
+    linux16 /netboot.xyz.lkrn
+}
+EOF
+
+# Fetch the network bootstrap binary right into our compilation payload loop
+curl -sL -o "$TMP_BUILD/netboot.xyz.lkrn" "https://boot.netboot.xyz/ipxe/netboot.xyz.lkrn"
+cp "$TMP_BUILD/netboot.xyz.lkrn" "$MOUNT_DIR/netboot.xyz.lkrn"
+
+# Bake everything into an official native BOOTX64.EFI module
+grub-mkstandalone \
+    -O x86_64-efi \
+    -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" \
+    --modules="part_gpt fat test regular efi_gop efi_uga gfxterm loopback lncmd" \
+    "boot/grub/grub.cfg=$TMP_BUILD/boot/grub/grub.cfg"
+
+rm -rf "$TMP_BUILD"
+
+# Drop network routing fallback map
 cat <<EOF > "$MOUNT_DIR/autoexec.ipxe"
 #!ipxe
 chain https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/script.ipxe
@@ -203,7 +231,12 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ RUFUS-ALIGNED ARMING SUCCESSFUL: Advanced key ready!"
+echo "✅ SUCCESS: Zero-touch installation USB armed!"
 echo "=========================================================="
-echo -e "${RED}\n🔄 PROCESS COMPLETE. REBOOT AND TRIGGER YOUR BOOT SELECTION GRID MANUALLY TO SELECT THE UEFI PARTITION ENTRY!${NC}"
+echo "🎯 Automated Configuration Profile Built:"
+echo " - Installation Target Hard Drive: /dev/$INTERNAL_DRIVE"
+echo " - Desktop Deployment Target: $PROFILE"
+echo " - Local Mirror Core: $REGION"
+echo "=========================================================="
+echo -e "${RED}\n🔄 ALL STEPS COMPLETE. REBOOT YOUR MACHINE NOW TO RUN THE UNATTENDED SETUP!${NC}"
 echo "=========================================================="
