@@ -12,21 +12,18 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - HIGH-COMPATIBILITY NETBOOT           "
+echo "    ARCH AUTOPILOT - UEFI GPT COMPATIBILITY JUMP          "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
 echo "🔍 Analyzing system hardware..."
 INTERNAL_DRIVE=""
 
-# Check if an NVMe drive exists and is likely the main OS drive
 if [ -b "/dev/nvme0n1" ]; then
     INTERNAL_DRIVE="nvme0n1"
-# Fallback to standard sda if it exists
 elif [ -b "/dev/sda" ]; then
     INTERNAL_DRIVE="sda"
 else
-    # Ultimate fallback: Find the first non-removable disk that isn't a loop device
     INTERNAL_DRIVE=$(lsblk -dno NAME,TYPE | grep -E "disk" | awk '{print $1}' | head -n 1)
 fi
 
@@ -68,9 +65,7 @@ echo -e "\n🌐 Detecting local system timezone..."
 TIMEZONE=$(timedatectl show --property=Timezone --value || echo "UTC")
 echo "📍 Detected Timezone: $TIMEZONE"
 
-# Extract the continent/region part (e.g., "Africa" from "Africa/Johannesburg")
 ZONE_PREFIX=$(echo "$TIMEZONE" | cut -d'/' -f1)
-
 case "$ZONE_PREFIX" in
     "Africa") REGION="South Africa" ;;
     "America") REGION="United States" ;;
@@ -81,20 +76,18 @@ case "$ZONE_PREFIX" in
 esac
 echo "🪞 Automatically matching mirror region: $REGION"
 
-# 5. Show ONLY removable USB drives to eliminate risk
+# 5. Show ONLY removable USB drives
 echo -e "\n=========================================================="
 echo "🔌 AVAILABLE USB FLASH DRIVES DETECTED:"
 echo "----------------------------------------------------------"
-lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected! Please plug one in."
+lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected!"
 echo "=========================================================="
 echo ""
-echo "Look at the list above. For example, if it says '👉 Drive Letter: sdb', type 'sdb'."
 read -p "Type your USB drive letter here: " TARGET_DEV </dev/tty
 TARGET="/dev/$TARGET_DEV"
 
-# Safety sanity check: Make sure they didn't pick the internal installation drive as the USB!
 if [ "$TARGET_DEV" == "$INTERNAL_DRIVE" ]; then
-    echo -e "${RED}❌ CRITICAL ERROR: You cannot use your main internal drive (/dev/$INTERNAL_DRIVE) as the installation USB!${NC}" >&2
+    echo -e "${RED}❌ CRITICAL ERROR: You cannot use your main internal drive as the installation USB!${NC}" >&2
     exit 1
 fi
 
@@ -103,12 +96,18 @@ if [ ! -b "$TARGET" ]; then
     exit 1
 fi
 
-# 6. Partition and Format the USB
-echo "🧹 Clearing device mounts and storage structures..."
+# 6. Partition and Format the USB with NATIVE UEFI GPT
+echo "🧹 Re-building partition blocks into a clean UEFI GPT structure..."
 umount "${TARGET}"* 2>/dev/null || true
-parted -s "$TARGET" mklabel msdos
+
+# Erase old signatures cleanly
+dd if=/dev/zero of="$TARGET" bs=512 count=40 conv=notrunc
+
+# Create a modern GPT partition label instead of old msdos
+parted -s "$TARGET" mklabel gpt
 parted -s "$TARGET" mkpart primary fat32 1MiB 100%
-parted -s "$TARGET" set 1 boot on
+# Set explicit EFI system partition flags so the motherboard is forced to see it
+parted -s "$TARGET" set 1 esp on
 
 if [[ "$TARGET_DEV" == *"nvme"* || "$TARGET_DEV" == *"mmcblk"* ]]; then
     PARTITION="${TARGET}p1"
@@ -126,7 +125,6 @@ trap 'umount "$MOUNT_DIR" 2>/dev/null && rmdir "$MOUNT_DIR" 2>/dev/null' EXIT
 
 mkdir -p "$MOUNT_DIR/EFI/BOOT"
 
-# Determine terminal package to launch post-install script based on desktop choice
 LAUNCH_TERM="kitty"
 if [[ "$PROFILE" == "kde" ]]; then
     LAUNCH_TERM="konsole"
@@ -187,8 +185,7 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 EOF
 
 # 9. Setup Bootloader files on the USB using the Driver-Inclusive Linux Initrd Application
-echo "🌐 Syncing high-compatibility network bootstrap architecture onto hardware..."
-# Pulling the standard Linux-kernel packed alternative to include all third-party NIC drivers
+echo "🌐 Syncing network bootstrap architecture onto hardware..."
 curl -L -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "https://boot.netboot.xyz/ipxe/netboot.xyz-initrd.efi"
 
 # Create local script routing redirection
@@ -199,14 +196,7 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ ARMING SUCCESSFUL: High-compatibility key created!"
+echo "✅ GPT RE-ARMING SUCCESSFUL: Dynamic key ready!"
 echo "=========================================================="
-echo "🎯 USB Configuration Complete:"
-echo " - Main Target Hard Drive: /dev/$INTERNAL_DRIVE"
-echo " - User profile: $USER_NAME"
-echo " - Desktop Profile: $PROFILE"
-echo " - Timezone: $TIMEZONE"
-echo " - Mirror Location Country: $REGION"
-echo "=========================================================="
-echo -e "${RED}\n🔄 PROCESS COMPLETE. PLEASE REBOOT YOUR PC NOW AND BOOT FROM THE USB KEY!${NC}"
+echo -e "${RED}\n🔄 PROCESS COMPLETE. REBOOT AND TAP YOUR BOOT OVERRIDE KEY (F8/F11/F12) TO MANUALLY FORCE THE UEFI USB TARGET!${NC}"
 echo "=========================================================="
