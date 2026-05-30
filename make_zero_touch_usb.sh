@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- COLORS FOR TERMINAL OUTPUT ---
+RED='\033[0;31m'
+NC='\033[0m' # No Color / Reset
+
 # Confirm root privilege availability
 if [ "$EUID" -ne 0 ]; then
-    echo "❌ Error: This setup wrapper requires sudo authorization." >&2
+    echo -e "${RED}❌ Error: This setup wrapper requires sudo authorization.${NC}" >&2
     exit 1
 fi
 
@@ -27,12 +31,12 @@ else
 fi
 
 if [ -z "$INTERNAL_DRIVE" ]; then
-    echo "❌ Error: Could not automatically detect an internal hard drive." >&2
+    echo -e "${RED}❌ Error: Could not automatically detect an internal hard drive.${NC}" >&2
     exit 1
 fi
 
 echo "🎯 Targeted Internal Drive for Arch Installation: /dev/$INTERNAL_DRIVE"
-echo "⚠️  NOTE: When you reboot, /dev/$INTERNAL_DRIVE will be COMPLETELY WIPED."
+echo -e "${RED}⚠️  WARNING: When you reboot, /dev/$INTERNAL_DRIVE will be COMPLETELY WIPED!${NC}"
 echo "=========================================================="
 echo ""
 
@@ -73,12 +77,12 @@ TARGET="/dev/$TARGET_DEV"
 
 # Safety sanity check: Make sure they didn't pick the internal installation drive as the USB!
 if [ "$TARGET_DEV" == "$INTERNAL_DRIVE" ]; then
-    echo "❌ CRITICAL ERROR: You cannot use your main internal drive (/dev/$INTERNAL_DRIVE) as the installation USB!" >&2
+    echo -e "${RED}❌ CRITICAL ERROR: You cannot use your main internal drive (/dev/$INTERNAL_DRIVE) as the installation USB!${NC}" >&2
     exit 1
 fi
 
 if [ ! -b "$TARGET" ]; then
-    echo "❌ Error: Target /dev/$TARGET_DEV could not be resolved." >&2
+    echo -e "${RED}❌ Error: Target /dev/$TARGET_DEV could not be resolved.${NC}" >&2
     exit 1
 fi
 
@@ -159,7 +163,7 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
     "version": "5.0.0",
     "custom-commands": [
         "mkdir -p /mnt/home/$USER_NAME/.config/autostart",
-        "echo -e '[Desktop Entry]\\\\nType=Application\\\\nName=PostInstallMenu\\\\nExec=$LAUNCH_TERM -e bash -c \"curl -sSL https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/new-install.sh | bash; rm -- \\\\\\\"\\\\\\$0\\?\\\"\"\\\\nX-GNOME-Autostart-enabled=true' > /mnt/home/$USER_NAME/.config/autostart/postinstall.desktop",
+        "echo -e '[Desktop Entry]\\\\nType=Application\\\\nName=PostInstallMenu\\\\nExec=$LAUNCH_TERM -e bash -c \"curl -sSL https://raw.githubusercontent.com/ppkcomputers/arch-unattended/main/new-install.sh | bash; rm -- \\\\\\\"\\\\\\$0\\\\\\\"\"\\\\nX-GNOME-Autostart-enabled=true' > /mnt/home/$USER_NAME/.config/autostart/postinstall.desktop",
         "chown -R 1000:1000 /mnt/home/$USER_NAME/.config"
     ]
 }
