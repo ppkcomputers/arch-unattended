@@ -12,7 +12,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - USER CONFIGURATION CREATOR           "
+echo "    ARCH AUTOPILOT - UNIVERSAL CONFIGURATION CREATOR     "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
@@ -48,7 +48,7 @@ read -s -p "🔑 Enter password for $USER_NAME: " USER_PASSWORD </dev/tty
 echo ""
 
 # 3. Select Desktop Profile
-echo -e "\n📺 Select your preferred Desktop Profile:"
+echo "📺 Select your preferred Desktop Profile:"
 echo "1) Cinnamon"
 echo "2) GNOME"
 echo "3) Hyprland"
@@ -68,7 +68,7 @@ echo -e "\n🌐 Detecting local system timezone..."
 TIMEZONE=$(timedatectl show --property=Timezone --value || echo "UTC")
 echo "📍 Detected Timezone: $TIMEZONE"
 
-# Extract the continent/region part (e.g., "Africa" from "Africa/Johannesburg")
+# Extract the continent/region part
 ZONE_PREFIX=$(echo "$TIMEZONE" | cut -d'/' -f1)
 
 case "$ZONE_PREFIX" in
@@ -85,7 +85,6 @@ echo "🪞 Automatically matching mirror region: $REGION"
 echo -e "\n=========================================================="
 echo "🔌 AVAILABLE USB FLASH DRIVES DETECTED:"
 echo "----------------------------------------------------------"
-# Filters lsblk to target only removable drives (RM=1) and excludes type loop/rom
 lsblk -dno NAME,SIZE,RM,TYPE | grep -E "1 disk" | awk '{print " 👉 Drive Letter: " $1 " (Size: " $2 ")"}' || echo "⚠️  No USB flash drives detected! Please plug one in."
 echo "=========================================================="
 echo ""
@@ -93,7 +92,7 @@ echo "Look at the list above. For example, if it says '👉 Drive Letter: sdb', 
 read -p "Type your USB drive letter here: " TARGET_DEV </dev/tty
 TARGET="/dev/$TARGET_DEV"
 
-# Safety sanity check: Make sure they didn't pick the internal installation drive as the USB!
+# Safety sanity check
 if [ "$TARGET_DEV" == "$INTERNAL_DRIVE" ]; then
     echo -e "${RED}❌ CRITICAL ERROR: You cannot use your main internal drive (/dev/$INTERNAL_DRIVE) as the installation USB!${NC}" >&2
     exit 1
@@ -104,12 +103,18 @@ if [ ! -b "$TARGET" ]; then
     exit 1
 fi
 
-# 6. Partition and Format the USB
+# 6. Partition and Format the USB (With Legacy + UEFI Hybrid Flags)
 echo "🧹 Clearing device mounts and storage structures..."
 umount "${TARGET}"* 2>/dev/null || true
+
+# Erase old partition signatures completely
+dd if=/dev/zero of="$TARGET" bs=512 count=40 conv=notrunc
+
+# Create classic MBR/msdos layout, add boot and lba flags for old BIOS compatibility
 parted -s "$TARGET" mklabel msdos
 parted -s "$TARGET" mkpart primary fat32 1MiB 100%
 parted -s "$TARGET" set 1 boot on
+parted -s "$TARGET" set 1 lba on
 
 if [[ "$TARGET_DEV" == *"nvme"* || "$TARGET_DEV" == *"mmcblk"* ]]; then
     PARTITION="${TARGET}p1"
@@ -127,7 +132,7 @@ trap 'umount "$MOUNT_DIR" 2>/dev/null && rmdir "$MOUNT_DIR" 2>/dev/null' EXIT
 
 mkdir -p "$MOUNT_DIR/EFI/BOOT"
 
-# Determine terminal package to launch post-install script based on desktop choice
+# Determine terminal package to launch post-install script
 LAUNCH_TERM="kitty"
 if [[ "$PROFILE" == "kde" ]]; then
     LAUNCH_TERM="konsole"
@@ -187,9 +192,13 @@ cat <<EOF > "$MOUNT_DIR/user_configuration.json"
 }
 EOF
 
-# 9. Setup Bootloader files on the USB
-echo "🌐 Syncing network bootstrap architecture onto hardware..."
+# 9. Setup Universal Bootloader files on the USB
+echo "🌐 Syncing multi-boot network architecture onto hardware..."
+# Standard UEFI Boot File
 curl -L -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "https://boot.netboot.xyz/ipxe/netboot.xyz.efi"
+
+# Fallback/Legacy PXE boot configuration for older motherboards
+curl -L -o "$MOUNT_DIR/bios.pxe" "https://boot.netboot.xyz/ipxe/netboot.xyz.lkrn" 2>/dev/null || true
 
 # Create local script routing redirection
 cat <<EOF > "$MOUNT_DIR/autoexec.ipxe"
@@ -199,15 +208,15 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ ARMING SUCCESSFUL: Intelligent key created!"
+echo "✅ ARMING SUCCESSFUL: Universal installer key created!"
 echo "=========================================================="
 echo "🎯 USB Configuration Complete:"
 echo " - Main Target Hard Drive: /dev/$INTERNAL_DRIVE"
 echo " - User profile: $USER_NAME"
 echo " - Desktop Profile: $PROFILE"
 echo " - Timezone: $TIMEZONE"
-echo " - Mirror Location Country: $REGION"
 echo " - Storage Layout: Btrfs with GRUB bootloader"
 echo "=========================================================="
 echo -e "${RED}\n🔄 PROCESS COMPLETE. PLEASE REBOOT YOUR PC NOW AND BOOT FROM THE USB KEY!${NC}"
+echo "⚠️  NOTE FOR OLDER LAPTOPS: Ensure 'UEFI Boot' or 'Legacy/CSM Support' is enabled in your BIOS settings if the drive does not list immediately.${NC}"
 echo "=========================================================="
