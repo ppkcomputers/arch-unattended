@@ -11,8 +11,14 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Ensure gptfdisk (sgdisk) is available on the host system
+if ! command -v sgdisk &> /dev/null; then
+    echo "⚙️ Installing gptfdisk dependency for advanced partitioning..."
+    sudo pacman -S --needed --noconfirm gptfdisk
+fi
+
 echo "=========================================================="
-echo "    ARCH AUTOPILOT - UEFI GPT COMPATIBILITY JUMP          "
+echo "    ARCH AUTOPILOT - RUFUS-STYLE UEFI BOOT CREATOR        "
 echo "=========================================================="
 
 # 1. Smart Hardware Detection (Find Main Internal Drive)
@@ -96,18 +102,18 @@ if [ ! -b "$TARGET" ]; then
     exit 1
 fi
 
-# 6. Partition and Format the USB with NATIVE UEFI GPT
-echo "🧹 Re-building partition blocks into a clean UEFI GPT structure..."
+# 6. Partition and Format the USB using Advanced sgdisk (Rufus-Style Flags)
+echo "🧹 Re-initializing storage device layout..."
 umount "${TARGET}"* 2>/dev/null || true
 
-# Erase old signatures cleanly
+# Fully wipe old partition fragments and GPT backup tables at the end of the disk
 dd if=/dev/zero of="$TARGET" bs=512 count=40 conv=notrunc
+sgdisk --zap-all "$TARGET"
 
-# Create a modern GPT partition label instead of old msdos
-parted -s "$TARGET" mklabel gpt
-parted -s "$TARGET" mkpart primary fat32 1MiB 100%
-# Set explicit EFI system partition flags so the motherboard is forced to see it
-parted -s "$TARGET" set 1 esp on
+# Create a clean GPT layout and define partition 1 explicitly as an EFI System Partition (type EF00)
+echo "💾 Writing strict EFI System Partition Type GUID (EF00)..."
+sgdisk --clear "$TARGET"
+sgdisk --new=1:2048:0 --typecode=1:ef00 --change-name=1:"EFI Boot" "$TARGET"
 
 if [[ "$TARGET_DEV" == *"nvme"* || "$TARGET_DEV" == *"mmcblk"* ]]; then
     PARTITION="${TARGET}p1"
@@ -116,7 +122,8 @@ else
 fi
 
 sleep 2
-mkfs.vfat -F 32 -n "ARCH_LAUNCH" "$PARTITION"
+# Format partition explicitly with Fat32 configuration parameters
+mkfs.vfat -F 32 -F 32 -n "ARCH_LAUNCH" "$PARTITION"
 
 # 7. Mount USB Environment
 MOUNT_DIR=$(mktemp -d)
@@ -196,7 +203,7 @@ EOF
 
 echo ""
 echo "=========================================================="
-echo "✅ GPT RE-ARMING SUCCESSFUL: Dynamic key ready!"
+echo "✅ RUFUS-ALIGNED ARMING SUCCESSFUL: Advanced key ready!"
 echo "=========================================================="
-echo -e "${RED}\n🔄 PROCESS COMPLETE. REBOOT AND TAP YOUR BOOT OVERRIDE KEY (F8/F11/F12) TO MANUALLY FORCE THE UEFI USB TARGET!${NC}"
+echo -e "${RED}\n🔄 PROCESS COMPLETE. REBOOT AND TRIGGER YOUR BOOT SELECTION GRID MANUALLY TO SELECT THE UEFI PARTITION ENTRY!${NC}"
 echo "=========================================================="
