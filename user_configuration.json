@@ -14,46 +14,10 @@
         }
     },
     "archinstall-language": "English",
-    "auth_config": {},
     "bootloader_config": {
         "bootloader": "Grub",
         "removable": true,
         "uki": true
-    },
-    "custom_commands": [],
-    "disk_config": {
-        "btrfs_options": {
-            "snapshot_config": {
-                "type": "Snapper"
-            }
-        },
-        "config_type": "pre_configured_layout",
-        "pre_configured_layout": {
-            "device": "/dev/sdb",
-            "filesystem": "btrfs",
-            "mount_options": [
-                "compress=zstd"
-            ],
-            "subvolumes": [
-                {
-                    "mountpoint": "/",
-                    "name": "@"
-                },
-                {
-                    "mountpoint": "/home",
-                    "name": "@home"
-                },
-                {
-                    "mountpoint": "/var/log",
-                    "name": "@log"
-                },
-                {
-                    "mountpoint": "/var/cache/pacman/pkg",
-                    "name": "@pkg"
-                }
-            ],
-            "wipe": true
-        }
     },
     "hostname": "archlinux",
     "kernels": [
@@ -65,20 +29,11 @@
         "sys_lang": "en_US.UTF-8"
     },
     "mirror_config": {
-        "custom_repositories": [],
-        "custom_servers": [],
         "mirror_regions": {
             "South Africa": [
-                "http://mirror.is.co.za/mirror/archlinux.org/$repo/os/$arch",
-                "http://za.mirrors.cicku.me/archlinux/$repo/os/$arch",
                 "https://za.mirrors.cicku.me/archlinux/$repo/os/$arch",
-                "http://archlinux.za.mirror.allworldit.com/archlinux/$repo/os/$arch",
                 "https://archlinux.za.mirror.allworldit.com/archlinux/$repo/os/$arch",
-                "http://mirrors.urbanwave.co.za/archlinux/$repo/os/$arch",
-                "https://mirrors.urbanwave.co.za/archlinux/$repo/os/$arch",
-                "https://johannesburg.mirror.pkgbuild.com/$repo/os/$arch",
-                "http://archlinux.mirror.net.za/$repo/os/$arch",
-                "https://archlinux.mirror.net.za/$repo/os/$arch"
+                "https://johannesburg.mirror.pkgbuild.com/$repo/os/$arch"
             ]
         },
         "optional_repositories": [
@@ -112,8 +67,6 @@
             "main": "Desktop"
         }
     },
-    "script": null,
-    "services": [],
     "swap": {
         "algorithm": "zstd",
         "enabled": true
