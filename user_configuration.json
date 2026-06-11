@@ -27,33 +27,11 @@
                 "type": "Snapper"
             }
         },
-        "config_type": "custom_layout",
-        "custom_layout": {
-            "/dev/sdb": {
-                "filesystem": "btrfs",
-                "mount_options": [
-                    "compress=zstd"
-                ],
-                "subvolumes": [
-                    {
-                        "mountpoint": "/",
-                        "name": "@"
-                    },
-                    {
-                        "mountpoint": "/home",
-                        "name": "@home"
-                    },
-                    {
-                        "mountpoint": "/var/log",
-                        "name": "@log"
-                    },
-                    {
-                        "mountpoint": "/var/cache/pacman/pkg",
-                        "name": "@pkg"
-                    }
-                ],
-                "wipe": true
-            }
+        "config_type": "best_effort_partition",
+        "best_effort_partition": {
+            "device": "/dev/sdb",
+            "filesystem": "btrfs",
+            "wipe": true
         }
     },
     "hostname": "archlinux",
