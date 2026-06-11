@@ -3,3 +3,10 @@ curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/hea
 
 Run this script once in live install environment to copy standard user config json file and start archinstall:
 curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/run-install.sh" -o /tmp/run-install.sh && bash /tmp/run-install.sh
+
+Default user_conifiguration file will install the following:
+-btrfs file system
+-Desktop windows manager: hyprland
+-pipewire
+-ufw firewall
+
