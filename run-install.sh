@@ -6,11 +6,16 @@ CONFIG_PATH="/tmp/user_configuration.json"
 CREDS_PATH="/tmp/user_credentials.json"
 
 echo "------------------------------------------------------------"
+echo "🔄 UPDATING ARCHINSTALL TO THE ABSOLUTE LATEST VERSION"
+echo "------------------------------------------------------------"
+# Refresh pacman sync databases and force upgrade archinstall in RAM
+pacman -Sy --noconfirm archinstall
+
+echo ""
+echo "------------------------------------------------------------"
 echo "📥 FETCHING ARCHINSTALL BLUEPRINTS FROM GITHUB"
 echo "------------------------------------------------------------"
-
-# Fetch with a highly unpredictable volatile random parameter to instantly destroy cache blocks
-echo "Downloading user_configuration.json (forcing fresh cache)..."
+# Fetch with an aggressive cache-buster query parameter
 curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_configuration.json?nocache=$RANDOM$RANDOM" -o "$CONFIG_PATH"
 
 echo "Checking for user_credentials.json on GitHub..."
