@@ -27,51 +27,33 @@
                 "type": "Snapper"
             }
         },
-        "config_type": "default_layout",
-        "device_modifications": [
-            {
-                "device": "/dev/sdb",
-                "partitions": [
-                    {
-                        "boot": true,
-                        "fs_type": "fat32",
-                        "mountpoint": "/boot",
-                        "size": "1GiB",
-                        "status": "create",
-                        "type": "primary"
-                    },
-                    {
-                        "btrfs": [
-                            {
-                                "mountpoint": "/",
-                                "name": "@"
-                            },
-                            {
-                                "mountpoint": "/home",
-                                "name": "@home"
-                            },
-                            {
-                                "mountpoint": "/var/log",
-                                "name": "@log"
-                            },
-                            {
-                                "mountpoint": "/var/cache/pacman/pkg",
-                                "name": "@pkg"
-                            }
-                        ],
-                        "fs_type": "btrfs",
-                        "mount_options": [
-                            "compress=zstd"
-                        ],
-                        "mountpoint": null,
-                        "size": "100%",
-                        "status": "create",
-                        "type": "primary"
-                    }
-                ],
-                "wipe": true
-            }
-        ]
+        "config_type": "pre_configured_layout",
+        "pre_configured_layout": {
+            "device": "/dev/sdb",
+            "filesystem": "btrfs",
+            "mount_options": [
+                "compress=zstd"
+            ],
+            "subvolumes": [
+                {
+                    "mountpoint": "/",
+                    "name": "@"
+                },
+                {
+                    "mountpoint": "/home",
+                    "name": "@home"
+                },
+                {
+                    "mountpoint": "/var/log",
+                    "name": "@log"
+                },
+                {
+                    "mountpoint": "/var/cache/pacman/pkg",
+                    "name": "@pkg"
+                }
+            ],
+            "wipe": true
+        }
     },
     "hostname": "archlinux",
     "kernels": [
