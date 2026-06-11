@@ -27,12 +27,9 @@
                 "type": "Snapper"
             }
         },
-        "config_type": "best_effort_partition",
-        "best_effort_partition": {
-            "device": "/dev/sdb",
-            "filesystem": "btrfs",
-            "wipe": true
-        }
+        "config_type": "btrfs",
+        "device": "/dev/sdb",
+        "wipe": true
     },
     "hostname": "archlinux",
     "kernels": [
