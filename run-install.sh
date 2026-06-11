@@ -9,7 +9,7 @@ echo "------------------------------------------------------------"
 echo "📥 FETCHING ARCHINSTALL BLUEPRINTS FROM GITHUB"
 echo "------------------------------------------------------------"
 
-# Fetch with an aggressive volatile random query to completely burst all CDN/proxy cache blocks
+# Fetch with a cache-buster query parameter to force GitHub to bypass its proxy
 echo "Downloading user_configuration.json (forcing fresh cache)..."
 curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_configuration.json?nocache=$RANDOM$RANDOM" -o "$CONFIG_PATH"
 
@@ -23,7 +23,7 @@ else
     echo -n "🔑 Enter desired ROOT password: "
     read -s ROOT_PASS
     echo ""
-    echo -n "👤 Enter new USERNAME: "
+    echo -n "👤 Enter new USERNAME (all lowercase): "
     read REQ_USER
     echo -n "🔑 Enter password for user '$REQ_USER': "
     read -s USER_PASS
@@ -58,8 +58,7 @@ echo "🧹 Clearing existing partition traces on $TARGET_DRIVE..."
 umount "${TARGET_DRIVE}"* 2>/dev/null || true
 wipefs -a -f "$TARGET_DRIVE"
 
-echo "🔄 Injecting target drive string mappings..."
-# This modifies any instance of /dev/sdb over to your real target drive choice inside the JSON layout
+echo "🔄 Injecting target drive mapping..."
 sed -i "s|/dev/sdb|${TARGET_DRIVE}|g" "$CONFIG_PATH"
 
 echo "🚀 Commencing automated archinstall installation sequence..."
