@@ -33,32 +33,10 @@
                 "device": "/dev/sdb",
                 "partitions": [
                     {
-                        "btrfs": [],
-                        "dev_path": null,
-                        "flags": [
-                            "boot",
-                            "esp"
-                        ],
+                        "boot": true,
                         "fs_type": "fat32",
-                        "mount_options": [],
                         "mountpoint": "/boot",
-                        "obj_id": "c9d6735a-fc2b-4024-ad9e-e670da048a00",
-                        "size": {
-                            "sector_size": {
-                                "unit": "B",
-                                "value": 512
-                            },
-                            "unit": "GiB",
-                            "value": 1
-                        },
-                        "start": {
-                            "sector_size": {
-                                "unit": "B",
-                                "value": 512
-                            },
-                            "unit": "MiB",
-                            "value": 1
-                        },
+                        "size": "1GiB",
                         "status": "create",
                         "type": "primary"
                     },
@@ -81,30 +59,12 @@
                                 "name": "@pkg"
                             }
                         ],
-                        "dev_path": null,
-                        "flags": [],
                         "fs_type": "btrfs",
                         "mount_options": [
                             "compress=zstd"
                         ],
                         "mountpoint": null,
-                        "obj_id": "32c1e156-c0fb-4e54-99a6-236ace764469",
-                        "size": {
-                            "sector_size": {
-                                "unit": "B",
-                                "value": 512
-                            },
-                            "unit": "B",
-                            "value": 135289372672
-                        },
-                        "start": {
-                            "sector_size": {
-                                "unit": "B",
-                                "value": 512
-                            },
-                            "unit": "B",
-                            "value": 1074790400
-                        },
+                        "size": "100%",
                         "status": "create",
                         "type": "primary"
                     }
