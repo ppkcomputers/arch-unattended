@@ -68,6 +68,28 @@ if [ ! -b "$TARGET_DRIVE" ]; then
     exit 1
 fi
 
+# ----------------------------------------------------------------------
+# 🛠️ NEW: CLEAR OVERLAPPING BACKUP GPT HEADERS & LOCKS
+# ----------------------------------------------------------------------
+echo "🧹 Wiping stubborn partition tables and backup signatures on $TARGET_DRIVE..."
+# Unmount anything running on it just to be safe
+umount "${TARGET_DRIVE}"* 2>/dev/null || true
+
+# Force wipe all standard filesystem signatures
+wipefs -a -f "$TARGET_DRIVE"
+
+# Install gptfdisk if it isn't in the live ISO (usually is) and zap structural metadata
+if command -v sgdisk &> /dev/null; then
+    # --zap-all destroys both main MBR/GPT structures and trailing backup tables
+    sgdisk --zap-all "$TARGET_DRIVE" || true
+fi
+
+# Inform the kernel about the changes
+partprobe "$TARGET_DRIVE" || true
+sync
+sleep 1
+# ----------------------------------------------------------------------
+
 echo "🔄 Replacing default hardware markers with your target: $TARGET_DRIVE..."
 # Dynamically swap /dev/sdb out for the user's specific choice inside the JSON blueprint
 sed -i "s|/dev/sdb|${TARGET_DRIVE}|g" "$CONFIG_PATH"
