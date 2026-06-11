@@ -10,16 +10,15 @@ echo "------------------------------------------------------------"
 echo "📥 FETCHING ARCHINSTALL BLUEPRINTS FROM GITHUB"
 echo "------------------------------------------------------------"
 
-# 1. Curl your configuration file straight into RAM (/tmp)
-echo "Downloading user_configuration.json..."
-curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_configuration.json" -o "$CONFIG_PATH"
+# Fetch with a randomized string to force GitHub to bypass its cache layer entirely
+echo "Downloading user_configuration.json (forcing fresh cache)..."
+curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_configuration.json?nocache=$RANDOM" -o "$CONFIG_PATH"
 
-# 2. Check for credentials file (Fallback to manual input if missing on GitHub)
 echo "Checking for user_credentials.json on GitHub..."
-CREDS_URL="https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_credentials.json"
+CREDS_URL="https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_credentials.json?nocache=$RANDOM"
 
 if curl -sfL "$CREDS_URL" -o "$CREDS_PATH"; then
-    echo "✅ Credentials configuration pulled successfully from GitHub."
+    echo "✅ Credentials configuration pulled successfully."
 else
     echo "⚠️ user_credentials.json not found on GitHub. Generating custom credentials in RAM..."
     echo "------------------------------------------------------------"
@@ -54,7 +53,7 @@ echo ""
 echo "------------------------------------------------------------"
 echo "🖥️  AVAILABLE SYSTEM STORAGE DRIVES"
 echo "------------------------------------------------------------"
-# List all block storage targets clearly for selection
+# List all block storage targets clearly for selection (omits loopback and live media mounts)
 lsblk -p -dno NAME,SIZE,MODEL | grep -vE "loop|airootfs" || true
 echo "------------------------------------------------------------"
 
@@ -68,21 +67,13 @@ if [ ! -b "$TARGET_DRIVE" ]; then
     exit 1
 fi
 
-echo "🧹 Clearing block constraints..."
+echo "🧹 Clearing existing partition system traces on $TARGET_DRIVE..."
 umount "${TARGET_DRIVE}"* 2>/dev/null || true
 wipefs -a -f "$TARGET_DRIVE"
 
-echo "🔄 Injecting target drive and dynamic disk scaling mappings..."
-# A. Swap out the default device name for your chosen target drive
+echo "🔄 Mapping target drive to configuration template..."
+# Dynamically swap /dev/sdb out for the user's specific choice inside the JSON blueprint
 sed -i "s|/dev/sdb|${TARGET_DRIVE}|g" "$CONFIG_PATH"
-
-# B. STRIP HARDCODED SIZE CONSTRAINTS: 
-# This removes the fixed 126 GiB byte allocation block and forces archinstall to auto-scale the drive layout
-sed -i '/"size": {/,/}/c\"size": "100%"' "$CONFIG_PATH"
-sed -i '/"start": {/,/}/d' "$CONFIG_PATH"
-
-# Fix formatting trailing commas that the deletions might disrupt
-sed -i 's/"status": "create"/"status": "create"/g' "$CONFIG_PATH"
 
 echo "✅ Configuration adjustments synchronized dynamically."
 echo "🚀 Commencing automated archinstall installation sequence..."
