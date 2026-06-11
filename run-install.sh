@@ -37,7 +37,30 @@ else
 EOF
 fi
 
-echo "🚀 Commencing unattended configuration sequence..."
+echo ""
+echo "------------------------------------------------------------"
+echo "🖥️  AVAILABLE SYSTEM STORAGE DRIVES"
+echo "------------------------------------------------------------"
+lsblk -p -dno NAME,SIZE,MODEL | grep -vE "loop|airootfs" || true
+echo "------------------------------------------------------------"
+
+echo -n "👉 Enter the full drive path to install Arch onto (e.g., /dev/sda or /dev/vda): "
+read -r TARGET_DRIVE
+
+if [ ! -b "$TARGET_DRIVE" ]; then
+    echo "❌ Error: $TARGET_DRIVE is not a valid block device."
+    exit 1
+fi
+
+echo "🧹 Clearing existing partition traces on $TARGET_DRIVE..."
+umount "${TARGET_DRIVE}"* 2>/dev/null || true
+wipefs -a -f "$TARGET_DRIVE"
+
+echo "🔄 Injecting target drive choice..."
+# This cleanly modifies the flat device path value inside the disk config structure
+sed -i "s|\"device\": \"/dev/sdb\"|\"device\": \"${TARGET_DRIVE}\"|g" "$CONFIG_PATH"
+
+echo "🚀 Commencing completely unattended installation..."
 echo "------------------------------------------------------------"
 
 archinstall --config "$CONFIG_PATH" --creds "$CREDS_PATH"
