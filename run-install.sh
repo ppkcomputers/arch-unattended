@@ -6,20 +6,13 @@ CONFIG_PATH="/tmp/user_configuration.json"
 CREDS_PATH="/tmp/user_credentials.json"
 
 echo "------------------------------------------------------------"
-echo "🔄 UPDATING ARCHINSTALL TO THE ABSOLUTE LATEST VERSION"
-echo "------------------------------------------------------------"
-# Refresh pacman sync databases and force upgrade archinstall in RAM
-pacman -Sy --noconfirm archinstall
-
-echo ""
-echo "------------------------------------------------------------"
 echo "📥 FETCHING ARCHINSTALL BLUEPRINTS FROM GITHUB"
 echo "------------------------------------------------------------"
-# Fetch with an aggressive cache-buster query parameter
-curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_configuration.json?nocache=$RANDOM$RANDOM" -o "$CONFIG_PATH"
+
+curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_configuration.json?nocache=$RANDOM" -o "$CONFIG_PATH"
 
 echo "Checking for user_credentials.json on GitHub..."
-CREDS_URL="https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_credentials.json?nocache=$RANDOM$RANDOM"
+CREDS_URL="https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_credentials.json?nocache=$RANDOM"
 
 if curl -sfL "$CREDS_URL" -o "$CREDS_PATH"; then
     echo "✅ Credentials configuration pulled successfully."
@@ -44,29 +37,7 @@ else
 EOF
 fi
 
-echo ""
-echo "------------------------------------------------------------"
-echo "🖥️  AVAILABLE SYSTEM STORAGE DRIVES"
-echo "------------------------------------------------------------"
-lsblk -p -dno NAME,SIZE,MODEL | grep -vE "loop|airootfs" || true
-echo "------------------------------------------------------------"
-
-echo -n "👉 Enter the full drive path to install Arch onto (e.g., /dev/sda or /dev/vda): "
-read -r TARGET_DRIVE
-
-if [ ! -b "$TARGET_DRIVE" ]; then
-    echo "❌ Error: $TARGET_DRIVE is not a valid block device."
-    exit 1
-fi
-
-echo "🧹 Clearing existing partition traces on $TARGET_DRIVE..."
-umount "${TARGET_DRIVE}"* 2>/dev/null || true
-wipefs -a -f "$TARGET_DRIVE"
-
-echo "🔄 Injecting target drive mapping..."
-sed -i "s|/dev/sdb|${TARGET_DRIVE}|g" "$CONFIG_PATH"
-
-echo "🚀 Commencing automated archinstall installation sequence..."
+echo "🚀 Commencing unattended configuration sequence..."
 echo "------------------------------------------------------------"
 
 archinstall --config "$CONFIG_PATH" --creds "$CREDS_PATH"
