@@ -9,7 +9,7 @@ echo "------------------------------------------------------------"
 echo "📥 FETCHING ARCHINSTALL BLUEPRINTS FROM GITHUB"
 echo "------------------------------------------------------------"
 
-# Fetch with a cache-buster query parameter to force GitHub to bypass its proxy
+# Fetch with a highly unpredictable volatile random parameter to instantly destroy cache blocks
 echo "Downloading user_configuration.json (forcing fresh cache)..."
 curl -L "https://raw.githubusercontent.com/ppkcomputers/arch-unattended/refs/heads/main/user_configuration.json?nocache=$RANDOM$RANDOM" -o "$CONFIG_PATH"
 
